@@ -719,4 +719,13 @@ config PWM_XILINX
 	  To compile this driver as a module, choose M here: the module
 	  will be called pwm-xilinx.
 
+config PWM_DIGILENT
+	tristate "Digilent AXI PWM driver support"
+	depends on ARCH_ZYNQ
+	help
+	  Simple Driver for Digilent AXI_PWM IP Core.
+
+	  To compile this driver as a module, choose M here: the module
+	  will be called pwm-dglnt.c
+
 endif

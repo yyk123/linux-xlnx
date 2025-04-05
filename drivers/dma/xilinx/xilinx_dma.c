@@ -2541,6 +2541,9 @@ int xilinx_vdma_channel_set_config(struct dma_chan *dchan,
 	if (cfg->reset)
 		return xilinx_dma_chan_reset(chan);
 
+	if (chan->xdev == 0)
+        return -1;
+
 	dmacr = dma_ctrl_read(chan, XILINX_DMA_REG_DMACR);
 
 	chan->config.frm_dly = cfg->frm_dly;

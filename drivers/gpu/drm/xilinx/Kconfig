@@ -1,0 +1,15 @@
+config FB_XILINX_VDMA
+	tristate "Xilinx LCD framebuffer driver support By Alientek"
+	depends on FB && ARCH_ZYNQ
+	select XILINX_FRMBUF
+	select FB_CFB_FILLRECT
+	select FB_CFB_COPYAREA
+	select FB_CFB_IMAGEBLIT
+	select FB_MODE_HELPERS
+	select VIDEOMODE_HELPERS
+	select PWM
+	select PWM_DIGILENT
+	select COMMON_CLK_XLNX_CLKWZRD
+	help
+	  LCD framebuffer driver based on vdma, vtc, axiclk IP core.
+

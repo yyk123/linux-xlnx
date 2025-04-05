@@ -1432,13 +1432,13 @@ xilinx_frmbuf_dma_prep_interleaved(struct dma_chan *dchan,
 
 	if (chan->direction != xt->dir || !chan->vid_fmt)
 		goto error;
-
+		
 	if (!xt->numf || !xt->sgl[0].size)
 		goto error;
 
 	if (xt->frame_size != chan->vid_fmt->num_planes)
 		goto error;
-
+		
 	vsize = xt->numf;
 	hsize = (xt->sgl[0].size * chan->vid_fmt->ppw * 8) /
 		 chan->vid_fmt->bpw;
@@ -1843,7 +1843,6 @@ static int xilinx_frmbuf_probe(struct platform_device *pdev)
 	xdev->common.device_issue_pending = xilinx_frmbuf_issue_pending;
 
 	platform_set_drvdata(pdev, xdev);
-
 	/* Register the DMA engine with the core */
 	dma_async_device_register(&xdev->common);
 

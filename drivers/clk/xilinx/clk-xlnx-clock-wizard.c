@@ -511,15 +511,19 @@ static int clk_wzrd_dynamic_all_nolock(struct clk_hw *hw, unsigned long rate,
 
 	err = clk_wzrd_get_divisors(hw, rate, parent_rate);
 	if (err)
+	{
+		pr_err("clk_wzrd: get divisors for dynamic configuration failed, clock rate: %lu Hz, parent clock rate: %lu Hz", rate, parent_rate);
 		return err;
+	}
 
 	reg = FIELD_PREP(WZRD_CLKOUT_DIVIDE_MASK, divider->o) |
 	      FIELD_PREP(WZRD_CLKOUT0_FRAC_MASK, divider->o_frac);
-
+	pr_info("clk_wzrd: write 0x%x to addr: 0x%px", reg, divider->base);
 	writel(reg, divider->base + WZRD_CLK_CFG_REG(0, 2));
 	reg = FIELD_PREP(WZRD_CLKFBOUT_MULT_MASK, divider->m) |
 	      FIELD_PREP(WZRD_CLKFBOUT_MULT_FRAC_MASK, divider->m_frac) |
 	      FIELD_PREP(WZRD_DIVCLK_DIVIDE_MASK, divider->d);
+	pr_info("clk_wzrd: write 0x%x to addr: 0x%px", reg, divider->base);
 	writel(reg, divider->base + WZRD_CLK_CFG_REG(0, 0));
 	writel(0, divider->base + WZRD_CLK_CFG_REG(0, 3));
 	div_addr = divider->base + WZRD_DR_INIT_REG_OFFSET;
@@ -564,12 +568,14 @@ static unsigned long clk_wzrd_recalc_rate_all(struct clk_hw *hw,
 	struct clk_wzrd_divider *divider = to_clk_wzrd_divider(hw);
 	u32 m, d, o, reg, f, mf;
 	u64 mul;
-
+	pr_info("clk_wzrd: base address: 0x%px, parent clk rate: %lu Hz\n", divider->base, parent_rate);
 	reg = readl(divider->base + WZRD_CLK_CFG_REG(0, 0));
+	pr_info("clk_wzrd: address 0x%08x: 0x%08x\n", divider->base + WZRD_CLK_CFG_REG(0, 0), reg);
 	d = FIELD_GET(WZRD_DIVCLK_DIVIDE_MASK, reg);
 	m = FIELD_GET(WZRD_CLKFBOUT_MULT_MASK, reg);
 	mf = FIELD_GET(WZRD_CLKFBOUT_MULT_FRAC_MASK, reg);
 	reg = readl(divider->base + WZRD_CLK_CFG_REG(0, 2));
+	pr_info("clk_wzrd: address 0x%08x: 0x%08x\n", divider->base + WZRD_CLK_CFG_REG(0, 2), reg);
 	o = FIELD_GET(WZRD_DIVCLK_DIVIDE_MASK, reg);
 	f = FIELD_GET(WZRD_CLKOUT0_FRAC_MASK, reg);
 
@@ -652,7 +658,10 @@ static long clk_wzrd_round_rate_all(struct clk_hw *hw, unsigned long rate,
 
 	err = clk_wzrd_get_divisors(hw, rate, *prate);
 	if (err)
+	{
+		pr_err("clk_wzrd: get divisors for rate roundation failed, clock rate: %lu Hz, parent clock rate: %lu Hz", rate, *prate);
 		return err;
+	}
 
 	m = divider->m;
 	d = divider->d;
@@ -1003,7 +1012,7 @@ static int clk_wzrd_probe(struct platform_device *pdev)
 	clk_wzrd->base = devm_platform_ioremap_resource(pdev, 0);
 	if (IS_ERR(clk_wzrd->base))
 		return PTR_ERR(clk_wzrd->base);
-
+	dev_info(&pdev->dev, "remap address: 0x%px\n", clk_wzrd->base);
 	ret = of_property_read_u32(np, "xlnx,speed-grade", &clk_wzrd->speed_grade);
 	if (!ret) {
 		if (clk_wzrd->speed_grade < 1 || clk_wzrd->speed_grade > 3) {
@@ -1017,6 +1026,11 @@ static int clk_wzrd_probe(struct platform_device *pdev)
 	if (IS_ERR(clk_wzrd->clk_in1))
 		return dev_err_probe(&pdev->dev, PTR_ERR(clk_wzrd->clk_in1),
 				     "clk_in1 not found\n");
+	ret = clk_prepare_enable(clk_wzrd->clk_in1);
+	if (ret) {
+		dev_err(&pdev->dev, "enabling clk_in1 failed\n");
+		return ret;
+	}
 
 	clk_wzrd->axi_clk = devm_clk_get(&pdev->dev, "s_axi_aclk");
 	if (IS_ERR(clk_wzrd->axi_clk))
@@ -1028,6 +1042,7 @@ static int clk_wzrd_probe(struct platform_device *pdev)
 		return ret;
 	}
 	rate = clk_get_rate(clk_wzrd->axi_clk);
+	dev_info(&pdev->dev, "axi_clk rate: %lu\n", rate);
 	if (rate > WZRD_ACLK_MAX_FREQ) {
 		dev_err(&pdev->dev, "s_axi_aclk frequency (%lu) too high\n",
 			rate);
@@ -1048,6 +1063,7 @@ static int clk_wzrd_probe(struct platform_device *pdev)
 	clkout_name = devm_kasprintf(&pdev->dev, GFP_KERNEL, "%s_out0", dev_name(&pdev->dev));
 	if (!clkout_name) {
 		ret = -ENOMEM;
+		dev_err(&pdev->dev, "get clkout_name failed.\n");
 		goto err_disable_clk;
 	}
 
@@ -1089,15 +1105,14 @@ static int clk_wzrd_probe(struct platform_device *pdev)
 			clk_wzrd->clkout[0] = clk_wzrd_register_divider
 				(&pdev->dev, clkout_name,
 				__clk_get_name(clk_wzrd->clk_in1), 0,
-				clk_wzrd->base, WZRD_CLK_CFG_REG(is_versal, 3),
+				clk_wzrd->base, WZRD_CLK_CFG_REG(0, 2),
 				WZRD_CLKOUT_DIVIDE_SHIFT,
 				WZRD_CLKOUT_DIVIDE_WIDTH,
 				CLK_DIVIDER_ONE_BASED | CLK_DIVIDER_ALLOW_ZERO,
 				DIV_ALL, &clkwzrd_lock);
-
 			goto out;
 		}
-		reg = readl(clk_wzrd->base + WZRD_CLK_CFG_REG(is_versal, 0));
+		reg = readl(clk_wzrd->base + WZRD_CLK_CFG_REG(0, 0));
 		reg_f = reg & WZRD_CLKFBOUT_FRAC_MASK;
 		reg_f =  reg_f >> WZRD_CLKFBOUT_FRAC_SHIFT;
 
@@ -1143,7 +1158,7 @@ static int clk_wzrd_probe(struct platform_device *pdev)
 			clk_register_fixed_factor(&pdev->dev, clk_name,
 						  clk_mul_name, 0, 1, div);
 	} else {
-		ctrl_reg = clk_wzrd->base + WZRD_CLK_CFG_REG(is_versal, 0);
+		ctrl_reg = clk_wzrd->base + WZRD_CLK_CFG_REG(0, 0);
 		clk_wzrd->clks_internal[wzrd_clk_mul_div] = clk_register_divider
 			(&pdev->dev, clk_name,
 			 __clk_get_name(clk_wzrd->clks_internal[wzrd_clk_mul]),
@@ -1180,15 +1195,15 @@ static int clk_wzrd_probe(struct platform_device *pdev)
 			if (!i)
 				clk_wzrd->clkout[i] = clk_wzrd_register_divf
 					(&pdev->dev, clkout_name, clk_name, flags, clk_wzrd->base,
-					(WZRD_CLK_CFG_REG(is_versal, 2) + i * 12),
+					(WZRD_CLK_CFG_REG(0, 2) + i * 12),
 					WZRD_CLKOUT_DIVIDE_SHIFT,
 					WZRD_CLKOUT_DIVIDE_WIDTH,
 					CLK_DIVIDER_ONE_BASED | CLK_DIVIDER_ALLOW_ZERO,
 					DIV_O, &clkwzrd_lock);
 			else
-				clk_wzrd->clkout[i] = clk_wzrd_register_divider
+				clk_wzrd->clkout[0] = clk_wzrd_register_divider
 					(&pdev->dev, clkout_name, clk_name, 0, clk_wzrd->base,
-					(WZRD_CLK_CFG_REG(is_versal, 2) + i * 12),
+					(WZRD_CLK_CFG_REG(0, 2)),
 					WZRD_CLKOUT_DIVIDE_SHIFT,
 					WZRD_CLKOUT_DIVIDE_WIDTH,
 					CLK_DIVIDER_ONE_BASED | CLK_DIVIDER_ALLOW_ZERO,
@@ -1225,7 +1240,7 @@ out:
 			dev_warn(&pdev->dev,
 				 "unable to register clock notifier\n");
 	}
-
+	dev_info(&pdev->dev, "Xilinx Clock Wizard Driver Probed!!!");
 	return 0;
 
 err_rm_int_clks:

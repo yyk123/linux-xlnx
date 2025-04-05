@@ -153,3 +153,21 @@ config DRM_XLNX_HDCP
 	  Choose this option if you have a FPGA display pipeline using
 	  Xilinx FPGA's in IP. This driver provides the kernel mode
 	  setting functionalities for the IP.
+
+config FB_XLNX_VDMA
+	tristate "Xilinx LCD framebuffer driver support By Alientek"
+	depends on FB && ARCH_ZYNQ
+	depends on DRM_XLNX
+	select DRM_XLNX_BRIDGE
+	select DRM_XLNX_BRIDGE_VTC
+	select XILINX_FRMBUF
+	select FB_CFB_FILLRECT
+	select FB_CFB_COPYAREA
+	select FB_CFB_IMAGEBLIT
+	select FB_MODE_HELPERS
+	select VIDEOMODE_HELPERS
+	select PWM
+	select PWM_DIGILENT
+	select COMMON_CLK_XLNX_CLKWZRD
+	help
+	  LCD framebuffer driver based on vdma, vtc, axiclk IP core.
