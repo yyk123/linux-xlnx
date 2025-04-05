@@ -29,11 +29,13 @@
 #define XLNX_VFMT_SIZE		4
 
 /* 正点原子LCD屏硬件ID */
+// RGB [23 -> 0]
 #define ATK4342		0			// 4.3寸480*272
-#define ATK4384		4			// 4.3寸800*480
-#define ATK7084		1			// 7寸800*480
+#define ATK4384		1			// 4.3寸800*480
 #define ATK7016		2			// 7寸1024*600
+#define ATK7084		4			// 7寸800*480
 #define ATK1018		5			// 10寸1280*800
+#define ATK7018		6			// 7寸1280*800
 
 /* 自定义结构体用于描述我们的LCD设备 */
 struct xilinx_vdmafb_dev {
@@ -65,6 +67,9 @@ static const struct fb_var_screeninfo xilinx_fb_var = {
 	// 像素深度（bit位）
 	.bits_per_pixel = 24,	
 };
+
+#define to_xlnxvdmafb_dev(_info) \
+	container_of(&_info, struct xilinx_vdmafb_dev, info)
 
 static int vdmafb_setcolreg(unsigned regno, unsigned red,
 			unsigned green, unsigned blue,
@@ -98,11 +103,18 @@ static int vdmafb_check_var(struct fb_var_screeninfo *var,
 	return 0;
 }
 
+static int vdmafb_set_par(struct fb_info *fb_info)
+{
+	struct xilinx_vdmafb_dev* fb_dev = to_xlnxvdmafb_dev(fb_info);
+	return 0;
+}
+
 /* Frame Buffer操作函数集 */
 static struct fb_ops vdmafb_ops = {
 	.owner 			= THIS_MODULE,
 	.fb_setcolreg	= vdmafb_setcolreg,
-	.fb_check_var	= vdmafb_check_var,
+	// .fb_check_var	= vdmafb_check_var,
+	// .fb_set_par = vdmafb_set_par,
 	FB_DEFAULT_IOMEM_OPS,
 	.fb_copyarea	= sys_copyarea,
 	.fb_imageblit	= sys_imageblit,
@@ -466,8 +478,6 @@ static int vdmafb_probe(struct platform_device *pdev)
 	gpiod_set_value_cansleep(fbdev->rst_gpio, 0x0);
 
 	dev_info(&pdev->dev, "Xilinx VDMAFB Driver Probed!!! \n");
-	memset(fbdev->info->screen_base, 0xFF, fbdev->info->screen_size); // 全屏白色
-	dev_info(&pdev->dev, "Forced screen fill with white\n");
 out:
 	platform_set_drvdata(pdev, fbdev);
 	return 0;
